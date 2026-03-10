@@ -1,0 +1,11 @@
+{
+    "projectName": "GoScript",
+    "languages": [
+        {
+            "id": "go-script",
+            "grammar": "src/language/go-script.langium",
+            "fileExtensions": [".gs"]
+        }
+    ],
+    "out": "src/language/generated"
+}
