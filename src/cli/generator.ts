@@ -4,13 +4,16 @@ import type {
     Program,
     Statement,
     Expression,
+    TopLevelDeclaration,
+    FunctionDeclaration,
 } from '../language/generated/ast.ts';
 import {
     isStringLiteral,
     isNumberLiteral,
-    isVariableReference,
+    isIdentifierReference,
     isPrintStatement,
     isVariableDeclaration,
+    isFunctionDeclaration,
 } from '../language/generated/ast.ts';
 import { extractDestinationAndName } from './cli-util.ts';
 
@@ -28,19 +31,37 @@ export function generateGo(model: Program, filePath: string, destination: string
 }
 
 function generateProgram(program: Program): string {
-    const bodyLines = program.statements
-        .map(stmt => generateStatement(stmt))
+    const pkg = program.packageClause?.name ?? 'main';
+    const importLines = (program.imports ?? [])
+        .map(imp => (imp.importSpec ? `import ${imp.importSpec} ${imp.path}` : `import ${imp.path}`))
+        .join('\n');
+    const declLines = (program.declarations ?? [])
+        .map(d => generateTopLevelDeclaration(d))
         .filter(Boolean)
-        .map(line => `\t${line}`);
+        .join('\n\n');
 
-    return `package main
+    return `package ${pkg}
 
-import "fmt"
+${importLines}
 
-func main() {
-${bodyLines.join('\n')}
-}
+${declLines}
 `;
+}
+
+function generateTopLevelDeclaration(decl: TopLevelDeclaration): string {
+    if (isFunctionDeclaration(decl)) {
+        return generateFunctionDeclaration(decl);
+    }
+    return '';
+}
+
+function generateFunctionDeclaration(fn: FunctionDeclaration): string {
+    const name = fn.name;
+    const params = (fn.params ?? []).map(p => p.name).join(', ');
+    const body = fn.block?.statements
+        ? fn.block.statements.map(s => generateStatement(s)).filter(Boolean).map(line => `\t${line}`).join('\n')
+        : '';
+    return `func ${name}(${params}) {\n${body}\n}`;
 }
 
 function generateStatement(stmt: Statement): string {
@@ -62,8 +83,8 @@ function generateExpression(expr: Expression): string {
     if (isNumberLiteral(expr)) {
         return expr.value;
     }
-    if (isVariableReference(expr)) {
-        return expr.variable.ref?.name ?? '<unresolved>';
+    if (isIdentifierReference(expr)) {
+        return expr.name;
     }
     return '';
 }
